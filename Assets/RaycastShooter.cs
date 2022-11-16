@@ -21,9 +21,9 @@ using System.Collections;
 						broadcaster.AddForce(ray.direction * force);
                         
 
-						// blood.transform.position = hit.point;
-						// blood.transform.rotation = Quaternion.LookRotation(-ray.direction);
-						// blood.Emit(5);
+						blood.transform.position = hit.point;
+						blood.transform.rotation = Quaternion.LookRotation(-ray.direction);
+						blood.Emit(5);
 					}
 				}
 			}
