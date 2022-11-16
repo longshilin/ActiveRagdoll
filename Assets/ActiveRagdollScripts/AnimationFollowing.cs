@@ -7,10 +7,9 @@ public class AnimationFollowing : MonoBehaviour
     /// <summary>
     /// Applies animation following.
     /// </summary>
+    [SerializeField] private Transform slave; // slave root (ragdoll)
 
-
-    private Transform slave;     // slave root (ragdoll)
-    private Transform master;    // master root (static animation)
+    [SerializeField] private Transform master; // master root (static animation)
 
     // ALL TRANSFORMS
     private Transform[] slaveTransforms;
@@ -19,7 +18,7 @@ public class AnimationFollowing : MonoBehaviour
     // RIGIDBODIES
     private Transform[] slaveRigidTransforms;
     private Transform[] masterRigidTransforms;
-    private Vector3[] rigidbodiesPosToCOM;  // positions of rigidbodies relative to center of mass
+    private Vector3[] rigidbodiesPosToCOM; // positions of rigidbodies relative to center of mass
 
     // JOINTS
     private ConfigurableJoint[] slaveConfigurableJoints;
@@ -30,12 +29,16 @@ public class AnimationFollowing : MonoBehaviour
     // USEFUL VARIABLES
     private Vector3[] forceLastError;
     private int numOfRigids;
+    [NonSerialized] public bool isAlive = true;
+
     [NonSerialized]
-    public bool isAlive = true;
+    public float
+        forceCoefficient = 1.0f; // This is set by slaveController script in real time. Controls force applied to limbs.
+
     [NonSerialized]
-    public float forceCoefficient = 1.0f; // This is set by slaveController script in real time. Controls force applied to limbs.
-    [NonSerialized]
-    public float torqueCoefficient = 1.0f; // This is set by slaveController script in real time. Controls torque applied to limbs.
+    public float
+        torqueCoefficient =
+            1.0f; // This is set by slaveController script in real time. Controls torque applied to limbs.
 
     // ALL ADJUSTABLE PARAMETERS
     [Range(0f, 340f)] private float angularDrag = 0f; // Rigidbodies angular drag.
@@ -43,10 +46,11 @@ public class AnimationFollowing : MonoBehaviour
     [Range(0f, 1000f)] private float maxAngularVelocity = 1000f; // Rigidbodies maxAngularVelocity.
     [Range(0f, 10f)] private float jointDamping = 0.6f;
 
-    [Tooltip("Proportional force of PID controller.")]
-    [Range(0f, 160f)] public float PForce = 8f;
-    [Tooltip("Derivative force of PID controller.")]
-    [Range(0f, .064f)] public float DForce = 0.01f;
+    [Tooltip("Proportional force of PID controller.")] [Range(0f, 160f)]
+    public float PForce = 8f;
+
+    [Tooltip("Derivative force of PID controller.")] [Range(0f, .064f)]
+    public float DForce = 0.01f;
 
     [Range(0f, 100f)] public float maxForce = 10f; // Limits the force
     [Range(0f, 10000f)] public float maxJointTorque = 2000f; // Limits the force
@@ -59,15 +63,19 @@ public class AnimationFollowing : MonoBehaviour
     private float[] maxJointTorqueProfile = { 1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f };
     private float[] jointDampingProfile = { 1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f };
 
-    private bool[] limbProfile = { true, true, true, true, true, true, true, true, true, true, true }; // False means no force and torque will be applied to specified limb.
+    private bool[]
+        limbProfile =
+        {
+            true, true, true, true, true, true, true, true, true, true, true
+        }; // False means no force and torque will be applied to specified limb.
 
 
     // Start is called before the first frame update
     void Start()
     {
-        HumanoidSetUp setUp = this.GetComponentInParent<HumanoidSetUp>();
-        master = setUp.masterRoot;
-        slave = setUp.slaveRoot;
+        // HumanoidSetUp setUp = this.GetComponentInParent<HumanoidSetUp>();
+        // master = setUp.masterRoot;
+        // slave = setUp.slaveRoot;
 
         slaveTransforms = slave.GetComponentsInChildren<Transform>(); // Get all transforms in ragdoll.
         masterTransforms = master.GetComponentsInChildren<Transform>(); // Get all transforms in master. 
@@ -94,7 +102,8 @@ public class AnimationFollowing : MonoBehaviour
             {
                 slaveRigidTransforms[i] = t;
                 masterRigidTransforms[i] = masterTransforms[j];
-                rigidbodiesPosToCOM[i] = Quaternion.Inverse(t.rotation) * (t.GetComponent<Rigidbody>().worldCenterOfMass - t.position);
+                rigidbodiesPosToCOM[i] = Quaternion.Inverse(t.rotation) *
+                                         (t.GetComponent<Rigidbody>().worldCenterOfMass - t.position);
 
                 ConfigurableJoint cj = t.GetComponent<ConfigurableJoint>();
                 if (cj != null) // ragdoll root (hips) doesn't have configurable joint
@@ -115,10 +124,12 @@ public class AnimationFollowing : MonoBehaviour
                     Debug.LogWarning("Rigidbody " + t + " doesn't have configurable joint" + "\n");
                     return;
                 }
+
                 i++;
 
-                t.gameObject.AddComponent<CollisionDetector>();
+                // t.gameObject.AddComponent<CollisionDetector>();
             }
+
             j++;
         }
 
@@ -133,9 +144,14 @@ public class AnimationFollowing : MonoBehaviour
         EnableJointLimits(true);
     }
 
+    void FixedUpdate()
+    {
+        // Apply animation following
+        FollowAnimation();
+    }
+
     public void FollowAnimation()
     {
-
         if (!isAlive)
         {
             SetJointTorque(0, 0);
@@ -159,7 +175,9 @@ public class AnimationFollowing : MonoBehaviour
             rb.useGravity = useGravity;
 
             // APPLY FORCE
-            Vector3 masterRigidTransformsWCOM = masterRigidTransforms[i].position + masterRigidTransforms[i].rotation * rigidbodiesPosToCOM[i];     // WCOM = World Center Of Mass
+            Vector3 masterRigidTransformsWCOM = masterRigidTransforms[i].position +
+                                                masterRigidTransforms[i].rotation *
+                                                rigidbodiesPosToCOM[i]; // WCOM = World Center Of Mass
             Vector3 forceError = masterRigidTransformsWCOM - rb.worldCenterOfMass;
             Vector3 forceSignal = PDControl(PForce, DForce, forceError, ref forceLastError[i]);
             forceSignal = Vector3.ClampMagnitude(forceSignal, maxForce * maxForceProfile[i] * forceCoefficient);
@@ -167,7 +185,9 @@ public class AnimationFollowing : MonoBehaviour
 
             // APPLY ROTATION
             if (i != 0) // exclude root (hips)
-                slaveConfigurableJoints[i].targetRotation = Quaternion.Inverse(localToJointSpace[i]) * Quaternion.Inverse(masterRigidTransforms[i].localRotation) * startLocalRotation[i];
+                slaveConfigurableJoints[i].targetRotation = Quaternion.Inverse(localToJointSpace[i]) *
+                                                            Quaternion.Inverse(masterRigidTransforms[i].localRotation) *
+                                                            startLocalRotation[i];
         }
     }
 
@@ -210,5 +230,4 @@ public class AnimationFollowing : MonoBehaviour
             }
         }
     }
-
 }
